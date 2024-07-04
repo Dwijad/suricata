@@ -1,61 +1,5 @@
 version: '3'
 services:
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
-    volumes:
-      - elasticsearch:/usr/share/elasticsearch/data 
-    ports:
-      - "9200:9200"
-      - "9300:9300"
-    environment:
-      - ES_JAVA_OPTS=-Xmx512m -Xms512m
-      - ELASTICSEARCH_USERNAME=${USERNAME:-elastic}
-      - ELASTIC_PASSWORD=${PASSWORD:-changeme}
-      - XPACK_SECURITY_ENABLED=false
-      - XPACK_SECURITY_ENROLLMENT_ENABLED=false
-      - XPACK_SECURITY_HTTP_SSL_ENABLED=false
-      - XPACK_SECURITY_TRANSPORT_SSL_ENABLED=true
-      - discovery.type=single-node
-    networks:
-      - elk
-      
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.13.4
-    environment:
-      - ELASTICSEARCH_URL=${ELASTICSEARCH_HOSTS}
-      - ELASTICSEARCH_SERVICEACCOUNTTOKEN=AAEAAWVsYXN0aWMva2liYW5hL3Rva2VuMTp6WGMyNnRwSFJEQ0RVRHdkWWZsN0h3
-      - XPACK_SECURITY_ENABLED=false
-      - XPACK_SECURITY_ENROLLMENT_ENABLED=false
-      - LOGGING_QUIET=true
-    volumes:
-      - ./services/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
-    ports:
-      - ${KIBANA_PORT:-5601}:5601
-    networks:
-      - elk
-    depends_on:
-      - elasticsearch
-
-  filebeat:
-    build:
-      context: ./services
-      dockerfile: ./filebeat/Dockerfile
-    environment:
-      - ELASTICSEARCH_HOSTS="http://elasticsearch:9200"
-      - ELASTICSEARCH_USERNAME=${USERNAME:-elastic}
-      - ELASTICSEARCH_PASSWORD=${PASSWORD:-changeme}
-      - KIBANA_HOST=${KIBANA_HOST}
-      - LOG_DIR=${IDS_LOG_DIR}
-    volumes:
-      - ./services/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:rw
-      - ./services/filebeat/modules.d/:/usr/share/filebeat/modules.d:rw
-      - ./services/filebeat/kibana/:/usr/share/filebeat/kibana:ro 
-      -  /var/log/:${IDS_LOG_DIR}:z 
-    networks:
-      - elk
-    depends_on:
-      - kibana
-
   suricata:
     build:
       context: ./services
@@ -76,48 +20,7 @@ services:
       - SURICATA_HOME_NET=${HOME_NET}
       - COMMUNITY_ID=${COMMUNITY_ID}
     network_mode: host
-
-  zeek:
-    build:
-      context: ./services
-      dockerfile: ./zeek/Dockerfile
-    privileged: true
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    volumes:
-      - /var/log/zeek:/usr/local/zeek/logs:rw
-      - ./services/zeek/config/local.zeek:/usr/local/zeek/share/zeek/site/local.zeek:ro
-      - ./services/zeek/config/zeekctl.cfg:/usr/local/zeek/etc/zeekctl.cfg:rw
-      - ./services/zeek/config/change_ownership.sh:/usr/local/zeek/bin/change_ownership.sh:ro
-    environment:
-      - TRUSTED_NET=${TRUSTED_NET}
-      - PGID=${PGID}
-      - PUID=${PUID}
-      - ZEEK_INTERFACE=${INTERFACE}
-    network_mode: host
-
-  slips:
-    build:
-      context: ./services
-      dockerfile: ./slips/Dockerfile
-    stdin_open: true
-    tty: true
-    cap_add:
-      - NET_ADMIN
-      - SYS_NICE
-    volumes:
-      - ./services/slips/dataset:/StratosphereLinuxIPS/dataset/
-      - /var/log/slips:/StratosphereLinuxIPS/output/:rw
-    environment:
-      - SLIP_INTERFACE=${INTERFACE}
-      - SLIP_HOME_NET=${HOME_NET}
-    network_mode: host
-    #entrypoint: ["bash", "-c", "source ~/.bashrc && envsubst < /StratosphereLinuxIPS/slips.conf.tmpl > /StratosphereLinuxIPS/slips.conf && redis-server --daemonize yes && python3 ./slips.py -i ${INTERFACE}"]
-
 networks:  
   elk:
     driver: bridge
-volumes:
-  elasticsearch:
 
